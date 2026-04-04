@@ -40,6 +40,34 @@ client = discord.Client(intents=intents)
 claude_lock = asyncio.Semaphore(1)
 
 
+_NARRATION_PREFIXES = (
+    "replied in discord",
+    "done —",
+    "done—",
+    "memory updated",
+    "updated memory",
+    "saved memory",
+    "feedback memory",
+    "i've replied",
+    "i've sent",
+    "i've updated",
+    "i've saved",
+)
+
+
+def strip_narration(text: str) -> str:
+    """Remove internal Claude narration lines that should never reach Discord."""
+    lines = text.splitlines()
+    kept = []
+    for line in lines:
+        low = line.strip().lower()
+        if any(low.startswith(prefix) for prefix in _NARRATION_PREFIXES):
+            continue
+        kept.append(line)
+    # Strip trailing blank lines that may be left after removing narration
+    return "\n".join(kept).rstrip()
+
+
 def call_claude(prompt: str) -> str:
     """Invoke claude -p and return the text response."""
     cmd = [
@@ -105,6 +133,8 @@ async def process_message(message: discord.Message):
         except Exception as e:
             log.exception("Error calling claude")
             response = f"Something went wrong: {type(e).__name__}"
+
+    response = strip_narration(response)
 
     if not response:
         return

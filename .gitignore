@@ -5,3 +5,6 @@ __pycache__/
 .idea/
 .vscode/
 *.log
+
+# Claude Code worktrees
+.claude/worktrees/

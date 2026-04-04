@@ -48,7 +48,7 @@ def call_claude(prompt: str) -> str:
         "--output-format", "json",
         "--model", CLAUDE_MODEL,
         "--append-system-prompt", SYSTEM_PROMPT,
-        "--allowedTools", "Bash,Read,Edit,Write,Grep,Glob",
+        "--allowedTools", "Bash,Read,Edit,Write,Grep,Glob,WebFetch,WebSearch",
         "--max-budget-usd", str(MAX_BUDGET_USD),
         "--no-session-persistence",
     ]

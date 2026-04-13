@@ -9,6 +9,7 @@ and sends the response back to Discord. Uses the Max plan, not Console API.
 import asyncio
 import json
 import logging
+import re
 import subprocess
 import sys
 
@@ -24,6 +25,7 @@ from config import (
     SYSTEM_PROMPT,
     WORKING_DIRECTORY,
 )
+from twitter import is_configured as x_configured, post_tweet, send_dm
 
 logging.basicConfig(
     level=logging.INFO,
@@ -105,6 +107,29 @@ def call_claude(prompt: str) -> str:
         return result.stdout.strip()
 
 
+def extract_x_actions(text: str) -> tuple[str, list[tuple[str, str]]]:
+    """
+    Extract [TWEET: ...] and [DM: ...] markers from Claude's response.
+    Returns (cleaned_text, [(action_type, content), ...]).
+    action_type is 'tweet' or 'dm'.
+    """
+    actions = []
+
+    def replace_marker(m):
+        kind = m.group(1).lower()   # 'tweet' or 'dm'
+        content = m.group(2).strip()
+        actions.append((kind, content))
+        return ""  # Remove marker from Discord text
+
+    cleaned = re.sub(
+        r'\[(TWEET|DM):\s*(.*?)\]',
+        replace_marker,
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    return cleaned.strip(), actions
+
+
 async def process_message(message: discord.Message):
     """Process an incoming Discord message through Claude."""
     prompt = (
@@ -139,9 +164,27 @@ async def process_message(message: discord.Message):
     if not response:
         return
 
+    # Extract any [TWEET: ...] or [DM: ...] markers before sending to Discord
+    discord_text, x_actions = extract_x_actions(response)
+
+    # Execute X actions
+    if x_actions and x_configured():
+        for action_type, content in x_actions:
+            if action_type == "tweet":
+                url = await asyncio.get_event_loop().run_in_executor(None, post_tweet, content)
+                log.info("Tweet result: %s", url)
+                discord_text += f"\n📣 Tweeted: {url}"
+            elif action_type == "dm":
+                result = await asyncio.get_event_loop().run_in_executor(None, send_dm, content)
+                log.info("DM result: %s", result)
+                discord_text += f"\n💬 {result}"
+
+    if not discord_text:
+        return
+
     # Discord message limit is 2000 chars — chunk if needed
-    for i in range(0, len(response), 1900):
-        chunk = response[i:i + 1900]
+    for i in range(0, len(discord_text), 1900):
+        chunk = discord_text[i:i + 1900]
         await message.channel.send(chunk)
 
 

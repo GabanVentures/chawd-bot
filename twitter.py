@@ -82,7 +82,7 @@ def send_dm(text: str, user_id: str = None) -> str:
 
     try:
         client = _client()
-        client.create_direct_message(participant_ids=[str(recipient)], text=text[:10000])
+        client.create_direct_message(participant_id=str(recipient), text=text[:10000])
         log.info("DM sent to X user %s", recipient)
         return f"DM sent to Leon on X"
     except Exception as e:

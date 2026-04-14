@@ -9,13 +9,11 @@ ALLOWED_CHANNEL_IDS = {
     int(ch) for ch in os.environ.get("ALLOWED_CHANNEL_IDS", "").split(",") if ch.strip()
 }
 
-CLAUDE_CLI_PATH = os.environ.get("CLAUDE_CLI_PATH", "claude")
-WORKING_DIRECTORY = os.environ.get("WORKING_DIRECTORY", ".")
-MAX_BUDGET_USD = 1.00
-CLAUDE_MODEL = "opus"
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+CLAUDE_MODEL = "claude-sonnet-4-5"
 
-# Response timeout (seconds) — claude -p can take a while on complex tasks
-CLAUDE_TIMEOUT = 300
+# Response timeout (seconds)
+CLAUDE_TIMEOUT = 120
 
 SYSTEM_PROMPT = """\
 You are Chawd, the engineer bot for Sentient Trading (Gaban Ventures).

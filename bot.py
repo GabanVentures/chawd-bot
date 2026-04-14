@@ -1,29 +1,26 @@
 #!/usr/bin/env python3
 """
-Chawd — persistent Discord bot wrapper for Claude Code.
+Chawd — persistent Discord bot for Sentient Trading.
 
-Listens for Discord messages, passes them to `claude -p` (Claude Code CLI),
-and sends the response back to Discord. Uses the Max plan, not Console API.
+Listens for Discord messages, passes them to the Anthropic API,
+and sends the response back to Discord.
 """
 
 import asyncio
-import json
 import logging
 import re
-import subprocess
 import sys
 
+import anthropic
 import discord
 
 from config import (
     ALLOWED_CHANNEL_IDS,
-    CLAUDE_CLI_PATH,
+    ANTHROPIC_API_KEY,
     CLAUDE_MODEL,
     CLAUDE_TIMEOUT,
     DISCORD_BOT_TOKEN,
-    MAX_BUDGET_USD,
     SYSTEM_PROMPT,
-    WORKING_DIRECTORY,
 )
 from twitter import is_configured as x_configured, post_tweet, send_dm
 
@@ -71,40 +68,18 @@ def strip_narration(text: str) -> str:
 
 
 def call_claude(prompt: str) -> str:
-    """Invoke claude -p and return the text response."""
-    cmd = [
-        CLAUDE_CLI_PATH,
-        "-p", prompt,
-        "--output-format", "json",
-        "--model", CLAUDE_MODEL,
-        "--append-system-prompt", SYSTEM_PROMPT,
-        "--allowedTools", "Bash,Read,Edit,Write,Grep,Glob,WebFetch,WebSearch",
-        "--max-budget-usd", str(MAX_BUDGET_USD),
-        "--no-session-persistence",
-    ]
+    """Call Claude via the Anthropic SDK and return the text response."""
+    if not ANTHROPIC_API_KEY:
+        return "ANTHROPIC_API_KEY is not set — ask Leon to add it to .env"
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=CLAUDE_TIMEOUT,
-        cwd=WORKING_DIRECTORY,
+    sdk = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    message = sdk.messages.create(
+        model=CLAUDE_MODEL,
+        max_tokens=2048,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
     )
-
-    if result.returncode != 0:
-        log.error("claude -p failed: %s", result.stderr[:500])
-        return f"Sorry, I hit an error processing that request."
-
-    # Parse JSON output to extract the response text
-    try:
-        data = json.loads(result.stdout)
-        # claude -p --output-format json returns {"result": "...", ...}
-        if isinstance(data, dict):
-            return data.get("result", "") or data.get("text", "") or str(data)
-        return str(data)
-    except json.JSONDecodeError:
-        # Fallback: return raw stdout if not valid JSON
-        return result.stdout.strip()
+    return message.content[0].text
 
 
 def extract_x_actions(text: str) -> tuple[str, list[tuple[str, str]]]:
@@ -153,7 +128,7 @@ async def process_message(message: discord.Message):
         loop = asyncio.get_event_loop()
         try:
             response = await loop.run_in_executor(None, call_claude, prompt)
-        except subprocess.TimeoutExpired:
+        except anthropic.APITimeoutError:
             response = "That request timed out. Try breaking it into smaller pieces."
         except Exception as e:
             log.exception("Error calling claude")

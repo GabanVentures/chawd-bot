@@ -16,7 +16,7 @@ Discord message → discord.py listener → claude -p (Claude Code CLI) → resp
                                               │
                                               ├── reads/edits strategy code
                                               ├── runs shell commands
-                                              └── deploys to AMS server
+                                              └── coordinates deploys to the NYC server
 ```
 
 ## Setup
